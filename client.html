@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SocketLive | Real-Time Dashboard</title>
+
+  <script src="https://cdn.socket.io/4.8.4/socket.io.min.js"
+    integrity="sha384-fBrXvbDtHoeKWJ/hcA6M+YGueiDW+h45I7V6F2kD1S8bOkrF9rZYPLVkCR6BLR/1"
+    crossorigin="anonymous"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #0b1020;
+      --panel: #121a2d;
+      --text: #eef3ff;
+      --muted: #91a0bb;
+      --accent: #7c6cff;
+      --cyan: #43d9d0;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: Arial, sans-serif;
+      background:
+        radial-gradient(circle at 12% 8%, rgba(124,108,255,.18), transparent 28rem),
+        radial-gradient(circle at 90% 85%, rgba(67,217,208,.10), transparent 25rem),
+        var(--bg);
+    }
+
+    .shell {
+      width: min(1120px, calc(100% - 36px));
+      margin: auto;
+      padding: 34px 0 48px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 34px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+    }
+
+    .logo {
+      width: 46px;
+      height: 46px;
+      border-radius: 15px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #8c7bff, #4b9dff);
+      font-size: 22px;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin: 0;
+    }
+
+    .brand p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .connection {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      border: 1px solid rgba(148,163,184,.15);
+      background: var(--panel);
+      border-radius: 999px;
+      padding: 10px 15px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: orange;
+    }
+
+    .online {
+      color: #7ce3b0;
+    }
+
+    .online .dot {
+      background: #43d9a0;
+    }
+
+    .offline .dot {
+      background: #ff6b7b;
+    }
+
+    .intro {
+      margin-bottom: 25px;
+    }
+
+    .eyebrow {
+      color: var(--cyan);
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+
+    .intro h2 {
+      font-size: clamp(27px, 4vw, 38px);
+      margin: 9px 0;
+    }
+
+    .intro p {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin: 25px 0;
+    }
+
+    .stat, .panel {
+      background: linear-gradient(145deg, #172239, #11192b);
+      border: 1px solid rgba(148,163,184,.15);
+      border-radius: 19px;
+    }
+
+    .stat {
+      padding: 20px;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 25px;
+      margin-top: 12px;
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: 1.35fr .85fr;
+      gap: 17px;
+    }
+
+    .panel {
+      padding: 23px;
+    }
+
+    .panel h3 {
+      font-size: 15px;
+      margin: 0;
+    }
+
+    .panel-sub {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 5px;
+    }
+
+    .feed {
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+      min-height: 280px;
+      max-height: 420px;
+      overflow: auto;
+      margin-top: 20px;
+    }
+
+    .empty {
+      border: 1px dashed rgba(148,163,184,.22);
+      border-radius: 14px;
+      padding: 35px 15px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .event {
+      display: flex;
+      gap: 12px;
+      padding: 13px;
+      border: 1px solid rgba(148,163,184,.15);
+      background: rgba(10,16,31,.36);
+      border-radius: 13px;
+    }
+
+    .event-icon {
+      width: 31px;
+      height: 31px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      background: rgba(67,217,208,.11);
+    }
+
+    .event-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .event-title {
+      font-size: 12px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .event-message {
+      color: #b2bfd5;
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .event-time {
+      color: #71809b;
+      font-size: 10px;
+      margin-top: 7px;
+    }
+
+    .composer {
+      margin-top: 17px;
+      padding-top: 17px;
+      border-top: 1px solid rgba(148,163,184,.15);
+    }
+
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 9px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 9px;
+    }
+
+    input {
+      flex: 1;
+      min-width: 0;
+      color: white;
+      background: #0c1426;
+      border: 1px solid rgba(148,163,184,.2);
+      border-radius: 11px;
+      padding: 13px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+    }
+
+    button {
+      border: 0;
+      border-radius: 11px;
+      padding: 0 18px;
+      color: white;
+      cursor: pointer;
+      background: linear-gradient(135deg,#8876ff,#5b73e8);
+      font-weight: bold;
+    }
+
+    button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    .hint {
+      color: #71809b;
+      font-size: 10px;
+      margin-top: 9px;
+    }
+
+    .side-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 17px;
+    }
+
+    .server-card {
+      margin-top: 18px;
+      padding: 18px;
+      border-radius: 14px;
+      background: rgba(10,16,31,.38);
+      border: 1px solid rgba(148,163,184,.15);
+    }
+
+    .server-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(148,163,184,.15);
+      font-size: 11px;
+    }
+
+    .server-line:last-child {
+      border: 0;
+    }
+
+    .server-line span:first-child {
+      color: var(--muted);
+    }
+
+    .server-line span:last-child {
+      color: white;
+      font-weight: bold;
+      text-align: right;
+    }
+
+    .event-key {
+      display: grid;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .key-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .key-code {
+      color: #c6bcff;
+      background: rgba(124,108,255,.13);
+      border-radius: 7px;
+      padding: 5px 7px;
+      font-family: monospace;
+    }
+
+    footer {
+      text-align: center;
+      color: #64728c;
+      font-size: 10px;
+      margin-top: 28px;
+    }
+
+    @media(max-width:760px) {
+      .content {
+        grid-template-columns: 1fr;
+      }
+      .stats {
+        gap: 9px;
+      }
+    }
+
+    @media(max-width:480px) {
+      header {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 15px;
+      }
+      .stats {
+        grid-template-columns: 1fr;
+      }
+      .input-row {
+        flex-direction: column;
+      }
+      button {
+        min-height: 43px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="shell">
+
+    <header>
+      <div class="brand">
+        <div class="logo">⚡</div>
+        <div>
+          <h1>SocketLive</h1>
+          <p>Real-time communication dashboard</p>
+        </div>
+      </div>
+
+      <div class="connection" id="connectionBadge">
+        <span class="dot"></span>
+        <span id="connectionText">Connecting...</span>
+      </div>
+    </header>
+
+    <section class="intro">
+      <div class="eyebrow">LIVE WORKSPACE</div>
+      <h2>Your real-time activity, <span style="color:#a99cff">in one place.</span></h2>
+      <p>Monitor server events and send messages through your Socket.IO connection.</p>
+    </section>
+
+    <section class="stats">
+      <div class="stat">
+        <span>Connection</span>
+        <strong id="connectionValue">Pending</strong>
+      </div>
+
+      <div class="stat">
+        <span>Events Received</span>
+        <strong id="eventCount">0</strong>
+      </div>
+
+      <div class="stat">
+        <span>Messages Sent</span>
+        <strong id="sentCount">0</strong>
+      </div>
+    </section>
+
+    <section class="content">
+
+      <div class="panel">
+        <h3>Live Activity Feed</h3>
+        <div class="panel-sub">Incoming Socket.IO events appear here</div>
+
+        <div class="feed" id="feed">
+          <div class="empty" id="emptyState">
+            Waiting for server events...<br>
+            Your incoming messages will appear here.
+          </div>
+        </div>
+
+        <form class="composer" id="messageForm">
+          <label for="messageInput">Send a message to the server</label>
+
+          <div class="input-row">
+            <input
+              id="messageInput"
+              type="text"
+              placeholder="Type your message..."
+              autocomplete="off"
+            >
+
+            <button id="sendButton" type="submit" disabled>
+              Send Message ↗
+            </button>
+          </div>
+
+          <p class="hint">
+            This sends the kuchbhi event to your backend.
+          </p>
+        </form>
+      </div>
+
+      <aside class="side-stack">
+
+        <div class="panel">
+          <h3>Connection Details</h3>
+          <div class="panel-sub">Current client information</div>
+
+          <div class="server-card">
+            <div class="server-line">
+              <span>Server Address</span>
+              <span>localhost:8080</span>
+            </div>
+
+            <div class="server-line">
+              <span>Transport</span>
+              <span>WebSocket</span>
+            </div>
+
+            <div class="server-line">
+              <span>Socket ID</span>
+              <span id="socketId">Waiting...</span>
+            </div>
+
+            <div class="server-line">
+              <span>Connection</span>
+              <span id="detailStatus">Connecting</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Event Reference</h3>
+          <div class="panel-sub">Events used by your backend</div>
+
+          <div class="event-key">
+            <div class="key-row">
+              <span class="key-code">gyankibaat</span>
+              Welcome message
+            </div>
+
+            <div class="key-row">
+              <span class="key-code">join</span>
+              New user joined
+            </div>
+
+            <div class="key-row">
+              <span class="key-code">announcement</span>
+              Server announcement
+            </div>
+
+            <div class="key-row">
+              <span class="key-code">kuchbhi</span>
+              Send message to server
+            </div>
+          </div>
+        </div>
+
+      </aside>
+    </section>
+
+    <footer>
+      SocketLive Dashboard · Frontend UI · Backend remains unchanged
+    </footer>
+
+  </main>
+
+  <script>
+    const socket = io("ws://localhost:8080/", {
+      transports: ["websocket"]
+    });
+
+    let receivedEvents = 0;
+    let sentMessages = 0;
+
+    const feed = document.getElementById("feed");
+    const emptyState = document.getElementById("emptyState");
+    const connectionBadge = document.getElementById("connectionBadge");
+    const connectionText = document.getElementById("connectionText");
+    const connectionValue = document.getElementById("connectionValue");
+    const detailStatus = document.getElementById("detailStatus");
+    const socketId = document.getElementById("socketId");
+    const eventCount = document.getElementById("eventCount");
+    const sentCount = document.getElementById("sentCount");
+    const messageInput = document.getElementById("messageInput");
+    const sendButton = document.getElementById("sendButton");
+
+    function updateConnection(isConnected) {
+      connectionBadge.classList.toggle("online", isConnected);
+      connectionBadge.classList.toggle("offline", !isConnected);
+
+      connectionText.textContent =
+        isConnected ? "Connected to server" : "Disconnected";
+
+      connectionValue.textContent =
+        isConnected ? "Online" : "Offline";
+
+      detailStatus.textContent =
+        isConnected ? "Connected" : "Disconnected";
+
+      sendButton.disabled = !isConnected;
+
+      socketId.textContent =
+        isConnected ? socket.id : "Not connected";
+    }
+
+    function addEvent(title, message, icon) {
+      if (emptyState) {
+        emptyState.remove();
+      }
+
+      const item = document.createElement("div");
+      item.className = "event";
+
+      const iconBox = document.createElement("div");
+      iconBox.className = "event-icon";
+      iconBox.textContent = icon;
+
+      const body = document.createElement("div");
+      body.className = "event-body";
+
+      const heading = document.createElement("div");
+      heading.className = "event-title";
+      heading.textContent = title;
+
+      const content = document.createElement("div");
+      content.className = "event-message";
+      content.textContent = String(message);
+
+      const time = document.createElement("div");
+      time.className = "event-time";
+      time.textContent = new Date().toLocaleTimeString();
+
+      body.append(heading, content, time);
+      item.append(iconBox, body);
+
+      feed.prepend(item);
+
+      receivedEvents++;
+      eventCount.textContent = receivedEvents;
+    }
+
+    socket.on("connect", () => {
+      updateConnection(true);
+      socketId.textContent = socket.id;
+
+      addEvent(
+        "Connected",
+        "Successfully connected to the Socket.IO server.",
+        "✓"
+      );
+    });
+
+    socket.on("connect_error", (error) => {
+      updateConnection(false);
+      addEvent("Connection Error", error.message, "!");
+    });
+
+    socket.on("disconnect", (reason) => {
+      updateConnection(false);
+      addEvent("Disconnected", reason, "×");
+    });
+
+    // Receiving messages from backend
+
+    socket.on("gyankibaat", (msg) => {
+      addEvent("Welcome Message", msg, "✦");
+    });
+
+    socket.on("join", (msg) => {
+      addEvent("New User Joined", msg, "＋");
+    });
+
+    socket.on("announcement", (msg) => {
+      addEvent("Server Announcement", msg, "📢");
+    });
+
+    // Sending messages to backend
+
+    document.getElementById("messageForm")
+      .addEventListener("submit", (event) => {
+
+        event.preventDefault();
+
+        const message = messageInput.value.trim();
+
+        if (!message || !socket.connected) return;
+
+        socket.emit("kuchbhi", message);
+
+        sentMessages++;
+        sentCount.textContent = sentMessages;
+
+        addEvent("Message Sent", message, "↗");
+
+        messageInput.value = "";
+        messageInput.focus();
+      });
+  </script>
+
+</body>
+</html>
